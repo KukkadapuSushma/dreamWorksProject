@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>STAGE 1</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	</head>
+ 
+	<body bgcolor="#FFEE00">
+    Atmos
+    
+        <div id="ThreeJS" style="position: absolute; left:0px; top:0px">
+
+        </div>
+        <!-- Imports! -->
+   		<script src="three.js"></script>
+   		<script src="OrbitControls.js"></script>
+		<script src="ImprovedNoise.js"></script>
+		<script src="Mirror.js"></script>
+		<script src="WaterShader.js"></script>
+
+		<script>
+			var SCREEN_WIDTH = window.innerWidth;
+			var SCREEN_HEIGHT = window.innerHeight;
+ 
+			var camera, scene;
+			var webglRenderer;
+
+			var X_AXIS = new THREE.Vector3( 1, 0, 0 );
+			var Y_AXIS = new THREE.Vector3( 0, 1, 0 );
+			var Z_AXIS = new THREE.Vector3( 0, 0, 1 );
+
+			init();
+			animate();
+            
+            function init(){
+            
+	            // SCENE
+	            scene = new THREE.Scene();
+
+                // CAMERA
+	            var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 200000;
+	            camera = new THREE.PerspectiveCamera( VIEW_ANGLE, ASPECT, NEAR, FAR);
+	            scene.add(camera);
+	            camera.position.set(-2635, 610, -9003);
+	            camera.lookAt(scene.position);	
+
+                // RENDERER            
+		        renderer = new THREE.WebGLRenderer( { antialias:true,
+											          logarithmicDeptBuffer: true } );               
+	            renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+		        // HTML SETUP
+            	webglContainer = document.getElementById( 'ThreeJS' );
+                var rendererScene = renderer.domElement;
+	            webglContainer.appendChild( rendererScene );
+	            
+	            // CONTROLS
+	            controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	            // WINDOW RESIZE
+                window.addEventListener('resize', onWindowResize, false);
+
+	            // AMBIENT LIGHT
+	            amblight = new THREE.AmbientLight( 0xffffff, 0.05);
+				scene.add( amblight );
+
+				// SKYBOX
+				// Use a dome or sky to fake the environment
+				
+				var skyBoxMaterial = new THREE.MeshBasicMaterial( { color: 0xaf9433,
+																	// DoubleSide to shade on both sides
+																	side: THREE.DoubleSide,
+																} );
+	            var skyBox = new THREE.Mesh(
+					new THREE.BoxGeometry( 30000, 30000, 30000 ),
+					skyBoxMaterial
+				);
+				scene.add( skyBox );
+            }
+ 
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+ 
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			}
+
+			function animate() {
+				requestAnimationFrame(animate);
+				render();
+			}
+ 
+			function render() {
+				controls.update();
+				camera.lookAt(scene.position);
+				renderer.render(scene, camera);
+			}
+		</script>
+	</body>
+</html>

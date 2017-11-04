@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>STAGE 3</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	</head>
+ 
+	<body bgcolor="#FFEE00">
+    Atmos
+    
+        <div id="ThreeJS" style="position: absolute; left:0px; top:0px">
+
+        </div>
+   		<script src="three.js"></script>
+   		<script src="OrbitControls.js"></script>
+		<script src="ImprovedNoise.js"></script>
+		<script src="Mirror.js"></script>
+		<script src="WaterShader.js"></script>
+
+		<script>
+			var SCREEN_WIDTH = window.innerWidth;
+			var SCREEN_HEIGHT = window.innerHeight;
+ 
+			var camera, scene;
+			var webglRenderer;
+
+			var X_AXIS = new THREE.Vector3( 1, 0, 0 );
+			var Y_AXIS = new THREE.Vector3( 0, 1, 0 );
+			var Z_AXIS = new THREE.Vector3( 0, 0, 1 );
+			// Define height of light cone
+			var CONE_HEIGHT = 4000;
+
+			init();
+			animate();
+            
+            function init(){
+            
+	            // SCENE
+	            scene = new THREE.Scene();
+	            // Add fog
+	            scene.fog = new THREE.Fog(0xffffff, 0.015, 150000);
+
+                // CAMERA
+	            var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 200000;
+	            camera = new THREE.PerspectiveCamera( VIEW_ANGLE, ASPECT, NEAR, FAR);
+	            scene.add(camera);
+	            camera.position.set(-2635, 610, -9003);
+	            camera.lookAt(scene.position);	
+
+                // RENDERER            
+		        renderer = new THREE.WebGLRenderer( { antialias:true,
+											          logarithmicDeptBuffer: true } );             
+	            renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+		        // HTML SETUP
+            	webglContainer = document.getElementById( 'ThreeJS' );
+                var rendererScene = renderer.domElement;
+	            webglContainer.appendChild( rendererScene );
+	            
+	            // CONTROLS
+	            controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	            // WINDOW RESIZE
+                window.addEventListener('resize', onWindowResize, false);
+
+				// LIGHT
+				var light = new THREE.DirectionalLight(0xf8f9fd);
+	            light.position.set( -5000, 2000, 5000);
+                light.intensity = 0.75;
+                light.visible = true;
+	            scene.add(light);
+
+	            // Add more lights to achieve a better look
+	            var light1 = new THREE.DirectionalLight(0xf8f9fd);
+				light1.position.set( 5000, 2000, 0);
+				light1.intensity = 0.10;
+				light1.visible = true;
+				scene.add(light1);
+
+				var light2 = new THREE.DirectionalLight(0x707169);
+				light2.position.set( 0, 2000, -5000);
+				light2.intensity = 0.10;
+				light2.visible = true;
+				scene.add(light2);
+
+				// SKYBOX
+				// Matte painting: save on creating far off objects
+				var loader = new THREE.CubeTextureLoader();
+				var textureCube = loader.load( [
+					'px.jpg', 'nx.jpg',
+					'py.jpg', 'ny.jpg',
+					'pz.jpg', 'nz.jpg'
+				] );
+
+	            var cubeShader = THREE.ShaderLib[ 'cube' ];
+	            cubeShader.uniforms[ 'tCube' ].value = textureCube;
+
+	            var skyBoxMaterial = new THREE.ShaderMaterial( {
+					fragmentShader: cubeShader.fragmentShader,
+					vertexShader: cubeShader.vertexShader,
+					uniforms: cubeShader.uniforms,
+					depthWrite: false,
+					side: THREE.DoubleSide
+				} );
+
+	            var skyBox = new THREE.Mesh(
+					new THREE.BoxGeometry( 30000, 30000, 30000 ),
+					skyBoxMaterial
+				);
+
+				// Rotate for effect
+				skyBox.rotation.x = - Math.PI/3;
+				scene.add( skyBox );
+
+				// WATER
+				// Use prebuilt water for applying material and providing light interactions
+				waterNormals = new THREE.TextureLoader().load( 'waternormals.jpg' );
+				waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
+
+				water = new THREE.Water( renderer, camera, scene, { textureWidth: 32768,
+																	textureHeight: 32768,
+																	waterNormals: waterNormals,
+																	alpha: 	1.0,
+																	sunDirection: light.position.clone().normalize(),
+																	sunColor: 0xffffff,
+																	waterColor: 0x7cc5fe,
+																} );
+				mirrorMesh = new THREE.Mesh(
+					new THREE.PlaneBufferGeometry( 30000 + 250, 30000 + 250),
+					water.material
+				);
+
+				mirrorMesh.rotation.x = - Math.PI * 0.5;
+				scene.add(mirrorMesh);
+
+				// ISLANDS
+				addIslandToScene(10000, 10000, 255, 0, 0, 0.3638);
+				addIslandToScene(3000, 3000, 55, 6000, 7000, 0.2758);
+				addIslandToScene(6000, 6000, 175, 9500, -8000, 0.5423);
+				addIslandToScene(2500, 2500, 45, -5500, 9700, 0.5423);
+				addIslandToScene(2500, 4500, 75, -8000, 9000, 0.6699);
+				addIslandToScene(7000, 5500, 175, -8000, -10000, 0.7993);
+
+				// LIGHTHOUSE
+	            var jsonLoader = new THREE.JSONLoader();
+	            jsonLoader.load("lighthouse_glass.js", function(geometry) { 
+											            	addLighthouseToScene(geometry, "lighthouse_glass.js")
+											            });
+	            jsonLoader.load("lighthouse.js", function(geometry) { 
+									            	addLighthouseToScene(geometry, "lighthouse.js")
+									            });
+
+	            // Create pivot to rotate cone about the lighthouse (instead of its own axis)
+				// PIVOT
+				pivot = new THREE.Object3D();
+				scene.add( pivot );
+
+	            // CONE of pretend light
+	            var lightTexture = new THREE.ImageUtils.loadTexture( 'lighthouse_fade.png' );
+				var cone = new THREE.Mesh( new THREE.CylinderGeometry(140, 0.1, CONE_HEIGHT, 20, 1, true),
+										   new THREE.MeshBasicMaterial({ map: lightTexture,
+																         transparent: true,
+																         opacity: 0.5,
+																         side: THREE.DoubleSide,
+																    }) );
+				cone.rotateOnAxis(X_AXIS, -Math.PI/2);
+
+				// Move pivot to top of lighthouse
+				pivot.position.setX(1600);
+				pivot.position.setY(1350);
+				pivot.add(cone);
+
+				// Move cone to rest its tip at the pivot rather than the center
+				cone.position.z -= CONE_HEIGHT/2;
+
+				// Add a partivle system to add rain
+				// RAIN
+				// Load raindrop image
+				var raindropTextureLoader = new THREE.TextureLoader();
+				raindrop = raindropTextureLoader.load( "raindrop.png" );
+
+				var spriteMaterial = new THREE.SpriteMaterial( { map: raindrop, 
+																   color: 0xffffff,
+																   fog: true,
+																} );
+
+				// Create material for each raindrop
+				var raindropMaterial = new THREE.PointsMaterial( { size: 15,
+														map: raindrop,
+														blending: THREE.AdditiveBlending,
+														depthTest: true,
+														transparent : true
+													} );
+
+				raindropMaterial.color.setHSL(1.0, 1.0, 1.0);
+
+				// Randomize position of sprites within some bounds to cover our islands
+				raindropGeometry = new THREE.Geometry(spriteMaterial);
+				for ( i = 0; i < 150000; i ++ ) {
+				    var vertex = new THREE.Vector3();
+				    vertex.x = Math.random() * 30000 - 10000;
+				    vertex.y = Math.random() * 30000 - 10000;
+				    vertex.z = Math.random() * 30000 - 10000;
+				    raindropGeometry.vertices.push( vertex );
+				}
+
+				// Instantiate the sprites on some points, and map the material to them
+				particles = new THREE.Points(raindropGeometry, raindropMaterial);
+				scene.add(particles);
+            }
+
+            function addIslandToScene (width, depth, segments, posX, posZ, seed) {
+            	// FLOOR
+				FLOOR_WIDTH = width;
+				FLOOR_DEPTH = depth;
+				FLOOR_SEGMENTS = segments;
+
+				// Add texture from image
+				// Make material use Phong shading
+				var mossTexture = new THREE.ImageUtils.loadTexture( 'green_grass_texture_with_moss.jpg' );
+	            var floorMaterial = new THREE.MeshPhongMaterial( {
+	            												  color: 0xffcc99,
+		            											  map: mossTexture,
+	            												  shading: THREE.SmoothShading,
+	            												  side: THREE.DoubleSide,
+	            												  });
+	            
+	            floorGeometry = new THREE.PlaneBufferGeometry(FLOOR_WIDTH, FLOOR_DEPTH, FLOOR_SEGMENTS, FLOOR_SEGMENTS);
+
+	            // Displace the heights of vertices by using a random number generator
+	            var vertices = floorGeometry.attributes.position.array;
+	            data = generateHeight(FLOOR_SEGMENTS+1, FLOOR_SEGMENTS+1, seed);
+				for ( var i = 0, j = 0, l = vertices.length; i < vertices.length; i++, j += 3) {
+					vertices[ j + 2 ] = data[ i ] * 10;
+				}
+
+				// Edit vertices to bring all edge vertices down to 0.
+				for ( var i = 0, j = 0, w = 0, d = 0; i < vertices.length; i++, j += 3) {
+					if (w == 0 || d == 0 || w == FLOOR_SEGMENTS || d == FLOOR_SEGMENTS){
+						// On detection of an edge
+						var l = j, prev;
+						// Smooth last tenth of segments by applying a sine curve
+						limit = FLOOR_SEGMENTS/10;
+						for(var k=0; k <= limit; k++) {
+							vertices[l+2] = Math.sin(k/limit) * vertices[l+2];
+							prev = l;
+							if(w==0)
+								l += 3;
+							else if(d==0)
+								l += (FLOOR_SEGMENTS*3);
+							else if(w == FLOOR_SEGMENTS)
+								l -= 3;
+							else
+								l -= (FLOOR_SEGMENTS*3);
+						}
+
+						// For continuity, apply a linear function on a twentieth of segments more
+						for(var k=0; k <= limit/2; k++) {
+							vertices[l+2] = (2*vertices[prev+2] + vertices[l+2])/3;
+							prev = l;
+							if(w==0)
+								l += 3;
+							else if(d==0)
+								l += (FLOOR_SEGMENTS*3);
+							else if(w == FLOOR_SEGMENTS)
+								l -= 3;
+							else
+								l -= (FLOOR_SEGMENTS*3);
+						}
+					}
+
+					if (w == FLOOR_SEGMENTS) {
+						w = 0;
+						d++;
+					}
+					else {
+						w++;
+					}
+				}
+				floorGeometry.computeFaceNormals();
+                floorGeometry.computeVertexNormals();
+
+	            var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+
+	            // Adjust positions to given x,z and submerge under water
+	            floor.position.x = posX;
+	            floor.position.y = -250;
+	            floor.position.z = posZ;
+	            
+	            floor.rotation.x = - Math.PI / 2;
+	            scene.add(floor);
+	            return;
+            }
+
+			function generateHeight(width, height, seed) {
+				var size = width * height, data = new Uint8Array( size ),
+				perlin = new ImprovedNoise(), quality = 1, z = seed * 100;
+				for ( var j = 0; j < 4; j ++ ) {
+					for ( var i = 0; i < size; i ++ ) {
+						var x = i % width, y = ~~ ( i / width );
+						data[ i ] += Math.abs( perlin.noise( x / quality, y / quality, z ) * quality * 1.75 );
+					}
+					quality *= 5;
+				}
+				return data;
+			}
+
+            function addLighthouseToScene(geometry, filename) {
+            	var material;
+            	if(filename == "lighthouse.js"){
+            		// load a checkerboard texture and repeat it to get a tiled effect
+            		var checkerTexture = new THREE.ImageUtils.loadTexture( 'checkerboard.jpg' );
+		            checkerTexture.wrapS = checkerTexture.wrapT = THREE.RepeatWrapping; 
+		            checkerTexture.repeat.set(3,3);
+		            material = new THREE.MeshPhongMaterial( { map: checkerTexture, 
+											            	  side: THREE.DoubleSide,
+											            } );
+            	}
+            	else {
+		            material = new THREE.MeshPhongMaterial( { color : 0xffffff,
+	        												  side: THREE.DoubleSide,
+	        												  // use emissive and transparency to create a glowing effect
+	        												  emissive: 0xFFFEC7,
+	        												  emissiveIntensity : .6,
+	        												  transparent : true,
+	        												  opacity : 0.5,
+												            } );
+		        }
+
+	            modelMesh = new THREE.Mesh(geometry, material);
+	            modelMesh.scale.set(20, 20, 20);
+
+                // Displace lighthouse to sit on a high point of the terrain
+                modelMesh.position.x = 1600;
+                modelMesh.position.y = 1050;
+
+	            scene.add(modelMesh);
+            }
+ 
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+ 
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			}
+
+			function animate() {
+				// Rotate pivot of lightcone
+				pivot.rotateOnAxis(Y_AXIS, .01);
+
+				// Animate offset of water normal map to create a rippling effect
+				water.material.uniforms.time.value += 1.0 / 60.0;
+
+				// Move the ypos of each raindrop down to create the effect of falling rain
+				var time = Date.now() * 0.00005;
+				for (var i = 0; i < 150000; i++) {
+				    var object = scene.children[ i ];
+				    if ( object instanceof THREE.Points ) {
+				        if (object.position.y < -500) { 
+				            object.position.y = 5000;
+				        }
+				        object.position.y -= i * Math.random() * 10 ;
+				    }
+				}
+				
+				requestAnimationFrame(animate);
+				render();
+			}
+ 
+			function render() {
+				controls.update();
+				camera.lookAt(scene.position);
+				water.render();
+				renderer.render(scene, camera);
+			}
+		</script>
+	</body>
+</html>
